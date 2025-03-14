@@ -1,31 +1,31 @@
-# MIC014 – Hands-On Basic: Desenvolvimento Orientado a Testes  
+# MIC016 – Hands-On Avanced: Rastreamento de ambulância 
 
 ## 📚 Sobre a Disciplina  
-**Disciplina**: MIC014 – Hands-On Basic  
-**Atividade**: Maker Aula XXXXXXXXXXXXXX  
-**Assunto**: Avanço e melhorias no projeto do **NOME PROJETO**
+**Disciplina**: MIC016 – Hands-On Avanced  
+**Atividade**: Maker Aula 01 
+**Assunto**: Avanço e melhorias no projeto do **Rastreamento de ambulância com GPS**
 
 ## 🚀 Projeto  
-Este repositório contém a implementação e evolução de um projeto de XXXXXXXXXXXXXX
+Este repositório contém a implementação e evolução de um projeto de rastreamento de ambulância com ESP32 e NEO-6M GPS Module.
 
 ---
 
-## 🏆 Desafio KXXXXXXXXXXXXXX - NOME PROJETO
-O objetivo é construir uma solução funcional e testável para XXXXXXXXXXXXXX.
+## 🏆 Desafio K1 - RASTERAMENTO DE AMBULÂNCIA
+O objetivo é construir uma solução funcional e testável para monitoramento e rastreamento de veículo hospitalar.
 
 ---
 
 ## 👩‍💻 Participantes do Projeto  
 - **Erica Camila Silva Cunha**  
-- **Guilherme Bueno Reinehr**  
-- **Jenner Patrick Lopes Brasil**  
-- **Wendemara Gomes**
+- **Filipe Gabriel Tomaz Brito**  
+- **João Lucas Sidney Rodrigues**  
+- **Halley Araújo Leal**
 
 ---
 
 |   |   |
 |----------|----------|
-| <img src="" alt="Diagrama" width="360">|<img src="" alt="Foto" width="640"> |
+| <img src="" alt="Diagrama" width="360">|<img src="https://github.com/user-attachments/assets/d29c68da-9fe4-40f5-8866-d17c2507c3db" alt="Foto" width="640"> |
 
 
 
