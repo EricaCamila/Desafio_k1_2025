@@ -1,145 +1,292 @@
 const express = require("express");
+const fs = require("fs");
 const axios = require("axios");
 const app = express();
 
-let gpsData = { lat: 0, lon: 0 }; // Última localização
+app.use(express.urlencoded({ extended: true })); // Para processar dados do formulário
+
+let gpsData = { lat: 0, lon: 0, name: "Desconhecido" }; // Última localização com nome
 let routeHistory = []; // Histórico da rota
 let destination = null; // Destino definido pelo usuário
-let routePath = []; // Caminho calculado da rota
+let routeToDestination = []; // Rota calculada pela API
 
-app.use(express.static("public"));
-app.use(express.json());
+const ORS_API_KEY = "5b3ce3597851110001cf6248baf7c541bcb74bb6864b7029e6bfa493"; // Substitua pela sua chave real do ORS entre aspas
+
+function loadRouteHistory() {
+  try {
+    if (fs.existsSync("routeHistory.json")) {
+      const data = fs.readFileSync("routeHistory.json", "utf8");
+      routeHistory = JSON.parse(data);
+      console.log("Histórico de rotas carregado do arquivo.");
+    }
+  } catch (error) {
+    console.error("Erro ao carregar o histórico de rotas:", error);
+  }
+}
+
+function saveRouteHistory() {
+  try {
+    fs.writeFileSync("routeHistory.json", JSON.stringify(routeHistory, null, 2), "utf8");
+    console.log("Histórico de rotas salvo no arquivo.");
+  } catch (error) {
+    console.error("Erro ao salvar o histórico de rotas:", error);
+  }
+}
+
+loadRouteHistory();
 
 app.get("/", (req, res) => {
   res.send(`
-        <html>
-            <head>
-                <title>Localização da Ambulância</title>
-                <meta http-equiv="refresh" content="5">
-                <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-                <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-                <style>
-                    body { font-family: Arial, sans-serif; display: flex; justify-content: space-between; padding: 20px; }
-                    .info-container { width: 25%; padding: 20px; }
-                    .map-container { width: 75%; height: 100vh; }
-                    #map { width: 100%; height: 500px; }
-                    .form-container { margin-top: 20px; }
-                </style>
-                <script>
-                    var map;
-                    var marker;
-                    var polyline;
-                    var destinationMarker;
-                    var routePolyline;
+    <html>
+      <head>
+        <title>Localização da Ambulância</title>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+          }
+          .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          }
+          h1, h2 {
+            color: #2E8B57;
+            margin-bottom: 10px;
+          }
+          p {
+            color: #4682B4;
+            margin: 5px 0;
+          }
+          a {
+            color: #2E8B57;
+            text-decoration: none;
+          }
+          a:hover {
+            text-decoration: underline;
+          }
+          form {
+            margin-top: 20px;
+          }
+          label {
+            display: block;
+            margin-bottom: 10px;
+            color: #333;
+          }
+          input[type="text"] {
+            padding: 8px;
+            width: 100%;
+            max-width: 300px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+          }
+          button {
+            padding: 10px 20px;
+            background-color: #2E8B57;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+          }
+          button:hover {
+            background-color: #256d44;
+          }
+          #map {
+            width: 100%;
+            height: 500px;
+            margin-top: 20px;
+            border-radius: 10px;
+          }
+        </style>
+        <script>
+          var map, marker, polylineHistory, polylineRoute;
 
-                    function initMap() {
-                        var location = { lat: ${gpsData.lat}, lng: ${gpsData.lon} };
-                        var routeHistory = ${JSON.stringify(routeHistory)};
-                        var destination = ${destination ? JSON.stringify(destination) : null};
-                        var routePath = ${JSON.stringify(routePath)};
+          function initMap() {
+            map = L.map('map').setView([${gpsData.lat}, ${gpsData.lon}], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+            updateMap(); // Chama a atualização inicial
+          }
 
-                        map = L.map('map').setView(location, 15);
+          function updateMap() {
+            fetch('/data')
+              .then(response => response.json())
+              .then(data => {
+                // Atualiza o nome do local e coordenadas na interface
+                document.getElementById('locationName').textContent = data.gpsData.name;
+                document.getElementById('lat').textContent = data.gpsData.lat;
+                document.getElementById('lon').textContent = data.gpsData.lon;
 
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        }).addTo(map);
+                // Atualiza o marcador da localização atual
+                if (marker) marker.remove();
+                marker = L.marker([data.gpsData.lat, data.gpsData.lon]).addTo(map)
+                  .bindPopup("<b>Localização Atual: " + data.gpsData.name + "</b>").openPopup();
+                map.setView([data.gpsData.lat, data.gpsData.lon], 15);
 
-                        if (marker) marker.remove();
-                        marker = L.marker(location).addTo(map).bindPopup("<b>Localização Atual da Ambulância</b>").openPopup();
+                // Atualiza o histórico da rota
+                if (data.routeHistory.length > 1) {
+                  if (polylineHistory) polylineHistory.remove();
+                  polylineHistory = L.polyline(data.routeHistory, { color: 'red' }).addTo(map);
+                }
 
-                        if (routeHistory.length > 1) {
-                            polyline = L.polyline(routeHistory, { color: 'red' }).addTo(map);
-                        }
+                // Atualiza a rota para o destino
+                if (data.routeToDestination.length > 0) {
+                  if (polylineRoute) polylineRoute.remove();
+                  polylineRoute = L.polyline(data.routeToDestination, { color: 'blue' }).addTo(map);
+                }
 
-                        if (destination) {
-                            if (destinationMarker) destinationMarker.remove();
-                            destinationMarker = L.marker(destination).addTo(map).bindPopup("<b>Destino</b>").openPopup();
-                        }
+                // Atualiza o marcador do destino
+                if (data.destination) {
+                  if (!L.DomUtil.get('dest-marker')) {
+                    L.marker([data.destination.lat, data.destination.lon], { id: 'dest-marker' })
+                      .addTo(map)
+                      .bindPopup("<b>Destino</b>").openPopup();
+                  }
+                }
+              })
+              .catch(error => console.error('Erro ao atualizar mapa:', error));
+          }
 
-                        if (routePath.length > 1) {
-                            if (routePolyline) routePolyline.remove();
-                            routePolyline = L.polyline(routePath, { color: 'blue', weight: 4 }).addTo(map);
-                        }
-                    }
-
-                    window.onload = initMap;
-                </script>
-            </head>
-            <body>
-                <div class="info-container">
-                    <h1>Localização Atual</h1>
-                    <p>Latitude: ${gpsData.lat}</p>
-                    <p>Longitude: ${gpsData.lon}</p>
-                    <a href="https://www.openstreetmap.org/?mlat=${gpsData.lat}&mlon=${gpsData.lon}#map=15/${gpsData.lat}/${gpsData.lon}" target="_blank">Abrir no OpenStreetMap</a>
-                    <div class="form-container">
-                        <h2>Definir Destino</h2>
-                        <form action="/destino" method="POST">
-                            <label>Endereço: <input type="text" name="endereco" required></label>
-                            <button type="submit">Definir</button>
-                        </form>
-                    </div>
-                </div>
-                <div class="map-container">
-                    <div id="map"></div>
-                </div>
-            </body>
-        </html>
-    `);
+          window.onload = function() {
+            initMap();
+            setInterval(updateMap, 5000); // Atualiza a cada 5 segundos
+          };
+        </script>
+      </head>
+      <body>
+        <div class="container">
+          <h1>Localização Atual</h1>
+          <p><strong>Local:</strong> <span id="locationName">${gpsData.name}</span></p>
+          <p><strong>Coordenadas:</strong> Lat: <span id="lat">${gpsData.lat}</span>, Lon: <span id="lon">${gpsData.lon}</span></p>
+          <a href="https://www.openstreetmap.org/?mlat=${gpsData.lat}&mlon=${gpsData.lon}#map=15/${gpsData.lat}/${gpsData.lon}" target="_blank">Abrir no OpenStreetMap</a>
+          <h2>Definir Destino</h2>
+          <form action="/set-destination" method="POST">
+            <label>Local de Destino: <input type="text" name="destinationName" placeholder="Ex.: Avenida Paulista, São Paulo" required></label>
+            <button type="submit">Traçar Rota</button>
+          </form>
+          <div id="map"></div>
+        </div>
+      </body>
+    </html>
+  `);
 });
 
-app.get("/update", (req, res) => {
+app.get("/data", (req, res) => {
+  res.json({
+    gpsData,
+    routeHistory,
+    destination,
+    routeToDestination
+  });
+});
+
+app.get("/update", async (req, res) => {
   if (req.query.lat && req.query.lon) {
     let lat = parseFloat(req.query.lat);
     let lon = parseFloat(req.query.lon);
-    
-    gpsData = { lat, lon };
-    routeHistory.push([lat, lon]);
 
-    console.log(`Nova localização: ${lat}, ${lon}`);
+    try {
+      // Geocodificação reversa com Nominatim para obter o nome do local
+      const geoResponse = await axios.get(
+        "https://nominatim.openstreetmap.org/reverse",
+        {
+          params: {
+            lat: lat,
+            lon: lon,
+            format: "json"
+          },
+          headers: {
+            "User-Agent": "AmbulanceTracker/1.0 (seu-email@example.com)" // Substitua pelo seu e-mail
+          }
+        }
+      );
+
+      const name = geoResponse.data.display_name || "Desconhecido";
+      gpsData = { lat, lon, name };
+      console.log(Nova localização: ${lat}, ${lon} - ${name});
+    } catch (error) {
+      console.error("Erro na geocodificação reversa:", error.message);
+      gpsData = { lat, lon, name: "Desconhecido" }; // Fallback
+    }
+
+    routeHistory.push([lat, lon]);
+    if (routeHistory.length > 100) routeHistory.shift();
+    saveRouteHistory();
+
     res.send("Localização atualizada e armazenada na rota!");
   } else {
     res.send("Erro: Passe os parâmetros lat e lon.");
   }
 });
 
-app.post("/destino", express.urlencoded({ extended: true }), async (req, res) => {
-  if (req.body.endereco) {
-    try {
-      const response = await axios.get(`https://nominatim.openstreetmap.org/search`, {
+app.post("/set-destination", async (req, res) => {
+  const destinationName = req.body.destinationName;
+
+  if (!destinationName || typeof destinationName !== "string" || destinationName.trim() === "") {
+    return res.send("Erro: Forneça um nome de local válido.");
+  }
+
+  try {
+    // Passo 1: Geocodificação com Nominatim para o destino
+    console.log("Buscando coordenadas para:", destinationName);
+    const geoResponse = await axios.get(
+      "https://nominatim.openstreetmap.org/search",
+      {
         params: {
-          q: req.body.endereco,
+          q: destinationName,
           format: "json",
           limit: 1
+        },
+        headers: {
+          "User-Agent": "AmbulanceTracker/1.0 (seu-email@example.com)" // Substitua pelo seu e-mail
         }
-      });
-
-      if (response.data.length > 0) {
-        destination = { lat: parseFloat(response.data[0].lat), lon: parseFloat(response.data[0].lon) };
-        console.log(`Destino definido: ${destination.lat}, ${destination.lon}`);
-        
-        const routeResponse = await axios.get("https://api.openrouteservice.org/v2/directions/driving-car", {
-          params: {
-            api_key: "API_KEY",
-            start: `${gpsData.lon},${gpsData.lat}`,
-            end: `${destination.lon},${destination.lat}`
-          }
-        });
-
-        if (routeResponse.data.features) {
-          routePath = routeResponse.data.features[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
-        }
-        
-        res.redirect("/");
-      } else {
-        res.send("Erro: Endereço não encontrado.");
       }
-    } catch (error) {
-      res.send("Erro ao buscar o endereço ou calcular a rota.");
+    );
+
+    if (!geoResponse.data || geoResponse.data.length === 0) {
+      throw new Error("Nenhum resultado encontrado para o local especificado.");
     }
-  } else {
-    res.send("Erro: Informe um endereço válido.");
+
+    const destLat = parseFloat(geoResponse.data[0].lat);
+    const destLon = parseFloat(geoResponse.data[0].lon);
+    destination = { lat: destLat, lon: destLon };
+    console.log(Coordenadas encontradas: lat=${destLat}, lon=${destLon});
+
+    // Passo 2: Calcular a rota com ORS
+    console.log(Calculando rota de [${gpsData.lon}, ${gpsData.lat}] para [${destLon}, ${destLat}]);
+    const routeResponse = await axios.post(
+      "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
+      {
+        coordinates: [
+          [gpsData.lon, gpsData.lat], // Origem: [lon, lat]
+          [destLon, destLat]          // Destino: [lon, lat]
+        ]
+      },
+      {
+        headers: {
+          "Authorization": ORS_API_KEY,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    routeToDestination = routeResponse.data.features[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+    console.log("Rota calculada com sucesso:", routeToDestination.length, "pontos");
+    res.redirect("/");
+  } catch (error) {
+    const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
+    console.error("Erro ao processar o destino:", errorMsg);
+    res.send("Erro ao processar o destino: " + errorMsg);
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(Servidor rodando na porta ${PORT}));
