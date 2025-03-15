@@ -17,7 +17,8 @@ O objetivo é construir uma solução funcional e testável para monitoramento e
 
 ## 👩‍💻 Participantes do Projeto  
 - **Erica Camila Silva Cunha**  
-- **Filipe Gabriel Tomaz Brito**  
+- **Filipe Gabriel Tomaz Brito**
+- **Jenner Patrick Lopes Brasil**  
 - **João Lucas Sidney Rodrigues**  
 - **Halley Araújo Leal**
 
