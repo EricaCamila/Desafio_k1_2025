@@ -10,7 +10,7 @@ let routeHistory = []; // Histórico da rota
 let destination = null; // Destino definido pelo usuário
 let routeToDestination = []; // Rota calculada pela API
 
-const ORS_API_KEY = "5b3ce3597851110001cf6248baf7c541bcb74bb6864b7029e6bfa493"; // Substitua pela sua chave real do ORS entre aspas
+const ORS_API_KEY = "API_KEY"; 
 
 function loadRouteHistory() {
   try {
